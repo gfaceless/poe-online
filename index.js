@@ -1,37 +1,40 @@
 'use strict';
 const notifier = require('node-notifier');
-var request = require('request');
+var Promise = require('bluebird');
+
+var check = require('./check-online')
+
 // String
 // notifier.notify('Message');
 
-var url;
-let onlineStr = '<span class="success label">online</span>'
-const interval = 60 * 1000;
+var urls
+
+urls = [
+  'http://poe.trade/search/imokimikimaham',
+  'http://poe.trade/search/atoamanoarinaz',
+  // 'http://poe.trade/search/siterehusitara', // online
+]
+// url = 'http://poe.trade/search/kononihuramduz';
+
+var checkers = urls.map(function(url) {
+  return check(url)
+})
 
 
-url = 'http://poe.trade/search/imokimikimaham';
-
-var run = function() {
-
-  request(url, function(error, response, body) {
-    if (!error && response.statusCode == 200) {
-
-      let online = body.includes(onlineStr);
-      if (online) {
-        notifier.notify({
-          'title': 'My notification',
-          'message': 'on line!',
-          sound: true,
-        });
-        console.log('checked, ONLINE', new Date().toLocaleTimeString())
-      } else {
-
-        console.log('checked, not online', new Date().toLocaleTimeString())
-      }
-
-    }
-  })
+function notify(){
+  notifier.notify({
+    'title': 'My notification',
+    'message': 'on line!',
+    sound: true,
+  });
 }
-
-run();
-setInterval(run, interval);
+Promise.any(checkers)
+.then(function() {
+  checkers.forEach(function(c){
+    // note: the one fullfilled won't call `onCancel()`
+    c.cancel();
+  })
+  notify();
+  setInterval(notify, 60*1000)
+})
+.catch(function(e) {console.log('err', e)})
