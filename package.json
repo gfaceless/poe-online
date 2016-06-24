@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "bluebird": "^3.3.4",
+    "moment": "^2.13.0",
     "node-notifier": "^4.5.0",
     "request": "^2.69.0",
     "rx": "^4.1.0"
