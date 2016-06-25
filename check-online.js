@@ -40,7 +40,8 @@ module.exports = function check(url, meta) {
         if (!cache[url] || cache[url] < ts) {
           cache[url] = ts;
         } else { // if server "date" header has an older timestamp, we reject the promise
-          return reject(new Error(`returned timestamp is stale, cached ts: ${cache[url]}, returned ts: ${ts}`))
+          let diff = Math.round((ts - cache[url])/1000);
+          return reject(new Error(`returned timestamp is stale, ${diff} sec later`))
         }
       }
 

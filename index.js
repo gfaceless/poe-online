@@ -1,34 +1,41 @@
 'use strict';
 const osNotifier = require('node-notifier');
-const CHECK_INTERVAL = 100 * 1000;
+
 const NOTIFY_INTERVAL = 50 * 1000;
 
 var Rx = require("rx");
 var PoeItem = require("./poe-item");
+var DisposableMgr = require("./disposable-mgr");
 
 var carts = [
   new PoeItem("some always online item(test only)", 'http://poe.trade/search/ahagekuberikii'),
   new PoeItem("some other always online item(test only)", 'http://poe.trade/search/agiakiogomahos'),
-  // new PoeItem('(buy it!)Maligaro > 45 mul', 'http://poe.trade/search/watakenikikomi'),
-  // new PoeItem('heretic\'s veil( es > 283 price < 4ex)', 'http://poe.trade/search/osamonowotabot'),
-  // new PoeItem('life, phys, mult < 1.5ex', 'http://poe.trade/search/iteoukutooagom'),
-  // new PoeItem('a better ev helmet, 1ex, craft and buy it', 'http://poe.trade/search/tekukawonoyase'),
-  // new PoeItem('a good ring! only 2chaos buy it!', 'http://poe.trade/search/etasetimameria'),
+  new PoeItem('(buy it!)Maligaro > 45 mul', 'http://poe.trade/search/watakenikikomi'),
+  new PoeItem('heretic\'s veil( es > 283 price < 4ex)', 'http://poe.trade/search/osamonowotabot'),
+  new PoeItem('life, phys, mult < 1.5ex', 'http://poe.trade/search/iteoukutooagom'),
+  new PoeItem('a better ev helmet, 1ex, craft and buy it', 'http://poe.trade/search/tekukawonoyase'),
+  new PoeItem('a good ring! only 2chaos buy it!', 'http://poe.trade/search/etasetimameria'),
   // new PoeItem('a good ring! buy it!', 'http://poe.trade/search/hamarubogomite'),
   // new PoeItem('perfect belt! buy it!', 'http://poe.trade/search/uteyehoohusita'),
-  new PoeItem('intuitive leap <= 50c', 'http://poe.trade/search/arihanyahuwina'),
-  // new PoeItem('enlighten <= 20c', 'http://poe.trade/search/emeraurazotari'),
-  // new PoeItem('a boot < 10c, buy it', 'http://poe.trade/search/matonekononiko'),
+  // new PoeItem('intuitive leap <= 50c', 'http://poe.trade/search/arihanyahuwina'),
+  new PoeItem('enlighten <= 20c', 'http://poe.trade/search/emeraurazotari'),
+  new PoeItem('a boot < 10c, buy it', 'http://poe.trade/search/matonekononiko'),
 ]
 
 var itemMgr = {
-  carts,
+  items: carts,
   notifier: null,
   onlineItems: [],
   _cache: [],
-  // notifies our users when any item changes online status.
-  // emits nothing, just an event so that our consumers know something has changed
-  // and then they will most probably directly use `itemMgr.onlineItems`.
+  _disposableMgr: new DisposableMgr(),
+  /** 
+   * a change monitoring center.
+   * notifies our users when an off item has become online (asap)
+   * but 
+   * emits nothing but an empty event for our consumers to know something has changed
+   * and then they will most probably directly use `itemMgr.onlineItems`.
+   * note that this method will be called frequently
+   */
   checkForChanges(item) {
     var idx = this.onlineItems.indexOf(item);
     var alreadyOnline = ~idx
@@ -38,7 +45,12 @@ var itemMgr = {
     }
     if (alreadyOnline && !item.online) {
       this.onlineItems.splice(idx, 1);
-      this.notify();
+
+      // if we want to add logic to notify users that an item becomes offline,
+      // we do it here.
+      // for now, we simply remove that item from `onlineItems` and do nothing else
+
+      // this.notify();
     }
   },
 
@@ -64,8 +76,35 @@ var itemMgr = {
   },
 
   init() {
-    this.notifier = new Rx.Subject();
 
+    this.items.forEach((item, i) => {
+      this.watchItem(item);
+    });
+
+    let TEST = false
+
+    ///////////////////////
+    // some crude tests: //
+    ///////////////////////
+    if (TEST) {
+      setTimeout(_ => {
+        console.log('about to unwatch!');
+        this.unwatchItem(this.items[0])
+        setTimeout(_ => {
+          console.log('about to rewatch!');
+          this.watchItem(this.items[0]);
+        }, 100 * 1000)
+      }, 20 * 1000)
+
+      // online becomes offline:
+      this.items[1].url = 'http://poe.trade/search/hamarubogomite';
+      // change checking interval to 10seconds for this paticular item:
+      this.items[0].changeInterval(10 * 1000);
+    }
+
+
+
+    this.notifier = new Rx.Subject();
     this.notifier.subscribe(
       function(msg) {
 
@@ -82,79 +121,38 @@ var itemMgr = {
       function() {
         console.log('Completed');
       })
+  },
+
+  watchItem(item) {
+    item.startCheck();
+    let sub = item.notifier.subscribe(_ => {
+      this.checkForChanges(item);
+    })
+    this._disposableMgr.add(item.id, sub)
+  },
+
+  // notice that we remove item from `onlineItems` when we unwatch it
+  // the logic may be a little confusing (or not)
+  unwatchItem(item) {
+    item.stopCheck();
+    this._disposableMgr.dispose(item.id);
+    let idx = this.onlineItems.indexOf(item);
+    if (~idx) this.onlineItems.splice(idx, 1);
+  },
+
+  addItem(name, url) {
+    let item = this.items.push(new PoeItem(name, url))
+    this.watchItem(item);
+  },
+
+  removeItem(item) {
+    this.unwatchItem(item)
+    let idx = this.items.indexOf(item)
+    if (~idx) this.onlineItems.splice(idx, 1);
+
   }
+
 }
 
 //TODO: maybe try constructor instead of singleton
 itemMgr.init();
-
-var streams = itemMgr.carts
-  .map(function(item) {
-
-    return Rx.Observable.timer(0, CHECK_INTERVAL)
-      // 
-      .flatMap(function(idx) {
-
-        return item.checkOnline()
-          .then(function(online) {
-            return online
-          }, function(err) {
-            // TODO: Add system erorr handling
-            console.log(`Racing happened, we caught it as an error`, err);
-          })
-      })
-      // emit only when online status being `false->true` or `true->false`
-      .map(function() {
-        itemMgr.checkForChanges(item)
-      })
-      //must subscribe. (cold Observable??)
-      .subscribe()
-  });
-
-/*(function wait() {
-  if (!exitFixed) setTimeout(wait, 10000);
-})();*/
-
-// var source = Rx.Observable.merge(...streams)
-
-
-/*
-var notifyStream;
-
-source.subscribe(
-  function(results) {
-    if (notifyStream) notifyStream.dispose();
-
-    console.log('here in Next!!, total %d times on start!', carts.length + 1);
-    let onlineItems = results.filter(function(result) {
-        return result.status
-      })
-      .map(function(result) {
-        return result.item
-      });
-
-    if (!onlineItems.length) return;
-    var msg = onlineItems.map(function(item) {
-        return item.name })
-      .join("\n")
-
-    // frequently notify our user
-    // TODO: add some interaction allowing user to discard further notification
-    notifyStream = Rx.Observable.timer(0, CHECK_INTERVAL / 2)
-      .subscribe(function(idx) {
-
-        notify(`${msg}\n(${idx+1} times)`);
-
-      }, function() {}, function() {
-        console.log('notifyStream Completed')
-      })
-
-
-  },
-
-  function(err) {
-    console.log('Error: ' + err);
-  },
-  function() {
-    console.log('Completed');
-  });*/
