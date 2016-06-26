@@ -2,15 +2,44 @@
 var checkOnline = require("./check-online")
 var Rx = require("rx");
 
-const CHECK_INTERVAL = 100 * 1000;
+
+const CHECK_INTERVAL = 100; /*seconds*/
 let id = 0;
 
 class PoeItem {
+
+  static create(name, url) {
+    console.log('static ok: ', this === PoeItem)
+
+    let validated = PoeItem.validate();
+    if (!validated) return false;
+
+    // add database logic here?4
+    // NOTE try seperating db logic
+    return new PoeItem(name, url);
+  }
+
+  // basic validation 
+  static validate(info) {
+    return true;
+  }
 
   constructor(name, url) {
 
     this.name = name;
     this.url = url;
+
+    /**
+     * I want some basic validation here
+     * but it is not intuitive for constructor to indicate validation failure.
+     * (because it must return an object, the best we could do is to return 
+     * something lie {faliure: true} ---- not intuitive) 
+     * another way, throwing an error, not convinient neither 
+     * (needs global error handling or try/catch)
+     *
+     * so in near future, I'll try some static method like `PoeItem.create()` for the job
+     */
+
     this.online = false;
     this.checkedTimes = 0;
     this.startedTime = undefined;
@@ -31,6 +60,10 @@ class PoeItem {
     return info;
   }
 
+  info() {
+    return shadowCopy(this, ["id", "name", "url", "online", "interval"]);
+  }
+
   checkOnline() {
 
     return checkOnline(this.url, this.name)
@@ -45,19 +78,38 @@ class PoeItem {
       })
   }
 
+  update(updates) {
+    // call validation here
+    if (updates.name) this.name = updates.name;
 
+    // if url changes, we should start check again asap    
+    // operator precedence `==` > `&&`
+    if (updates.url && this.url != updates.url) {
+      this.url = updates.url;
+      this._restartLoopTimer();
+    }
 
-  changeInterval(interval) {
-    this.interval = interval;
+    if (updates.interval) this._changeInterval(updates.interval)
 
+    return new Promise((resolve, reject) => {
+      resolve(this.info());
+    })
+  }
+
+  _changeInterval(interval) {
+    var _interval = +interval
+    if(this.interval === _interval) return;
+    this.interval = _interval;
+    this._restartLoopTimer();
+  }
+
+  _restartLoopTimer() {
     // if item is doing checking, we alter time loop by restart it.
-    // else we do nothing but simply change interval
+    // else we do nothing
     if (!this.checking) return;
     this._stopLoopTimer();
     this._startLoopTimer();
   }
-
-
 
   // we notify our parent online status.
   // should find a better method name.
@@ -117,10 +169,11 @@ class PoeItem {
     this.startedTime = undefined;
   }
   _startLoopTimer() {
+    let ms = this.interval * 1000;
     this._loopTimer = setInterval(_ => {
       console.log('in loop');
       this._observer.onNext();
-    }, this.interval)
+    }, ms)
     this._observer.onNext()
   }
 
@@ -139,4 +192,22 @@ function round(number, bits) {
   let mul = Math.pow(10, bits);
   return Math.round(number * mul) / mul;
 }
+
+
+function shadowCopy(obj, props) {
+  var clone = {};
+  if (!props) {
+    Object.keys(obj).forEach(key => {
+      if (key.startsWith('_')) return;
+      clone[key] = obj[key];
+    })
+  } else {
+    props.forEach(function(prop, i) {
+      clone[prop] = obj[prop];
+    });
+  }
+
+  return clone;
+}
+
 module.exports = PoeItem;
