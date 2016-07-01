@@ -14,7 +14,7 @@ class PoeItem {
     let validated = PoeItem.validate();
     if (!validated) return false;
 
-    // add database logic here?4
+    // add database logic here?
     // NOTE try seperating db logic
     return new PoeItem(name, url);
   }
@@ -37,7 +37,7 @@ class PoeItem {
      * another way, throwing an error, not convinient neither 
      * (needs global error handling or try/catch)
      *
-     * so in near future, I'll try some static method like `PoeItem.create()` for the job
+     * so in near future, I'll try some factory method like `PoeItem.create()` for the job
      */
 
     this.online = false;
@@ -64,6 +64,10 @@ class PoeItem {
     return shadowCopy(this, ["id", "name", "url", "online", "interval"]);
   }
 
+  toJSON(){    
+    return this.info();
+  }
+
   checkOnline() {
 
     return checkOnline(this.url, this.name)
@@ -86,14 +90,13 @@ class PoeItem {
     // operator precedence `==` > `&&`
     if (updates.url && this.url != updates.url) {
       this.url = updates.url;
+      this.checkedTimes = 0;
       this._restartLoopTimer();
     }
 
     if (updates.interval) this._changeInterval(updates.interval)
 
-    return new Promise((resolve, reject) => {
-      resolve(this.info());
-    })
+    return new Promise.resolve(this.info())
   }
 
   _changeInterval(interval) {
@@ -111,23 +114,25 @@ class PoeItem {
     this._startLoopTimer();
   }
 
-  // we notify our parent online status.
+  // notify online status to parent.
   // should find a better method name.
   startCheck() {
-    if (this.checking) return;
+    if (this.checking) return false;
     if (!this.inited) this.init();
 
     // subscribe the checker
     // kick start
     this._subscriber = this.checker.subscribe()
     this.checking = true;
+    return true;
   }
 
   stopCheck() {
-    if (!this.checking) return;
+    if (!this.checking) return false;
     this._subscriber.dispose();
     console.log('after dispose?', 2)
     this.checking = false;
+    return true;
   }
 
   // why do we seperate constructor and init? idk.. wierd tradition
@@ -150,7 +155,7 @@ class PoeItem {
             online => online,
             function(err) {
               // TODO: Add system erorr handling
-              console.log(`Racing happened, we caught it as an error`, err);
+              console.log(`err happened, we caught it as an error, may be network failure or racing`, err);
             })
       })
       .map(online => {
@@ -169,7 +174,7 @@ class PoeItem {
     this.startedTime = undefined;
   }
   _startLoopTimer() {
-    let ms = this.interval * 1000;
+    let ms = this.interval * 1000;    
     this._loopTimer = setInterval(_ => {
       console.log('in loop');
       this._observer.onNext();

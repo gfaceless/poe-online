@@ -1,29 +1,49 @@
 'use strict'
 
- class Timer {
+const DEFAULT_OPTS = {
+  paused: true,
+  context: null,
+  executeBeforeFirstLoop: false
+}
+class Timer {
 
-  constructor(loopFn, intervalGetter, context) {
+  constructor(loopFn, intervalGetter, opts) {
     this._loopFn = loopFn
     this._intervalGetter = intervalGetter;
-    if (context) {
-      this._loopFn = loopFn.bind(context)
-      this._intervalGetter = intervalGetter.bind(context)
+    opts = Object.assign({}, DEFAULT_OPTS, opts);
+
+    if (opts.context) {
+      this._loopFn = loopFn.bind(opts.context)
+      this._intervalGetter = intervalGetter.bind(opts.context)
     }
-    this.paused = false;
-    this._start();
+
+    this.opts = opts;
+    this.paused = opts.paused // easier to ref
+    this._beforeFirstLoop = true;
+    if (!this.paused) this.start();
   }
 
-  pause() {
-    if (this.paused) return;
-    this.leftTime = this.waitTime - (Date.now() - this.lastTime)
-      // if (this.leftTime < 0) 
+  reset() {
+    if (!this.paused) {
+      clearTimeout(this._timeoutId);
+    }
+    this._beforeFirstLoop = true;
 
-    clearTimeout(this._timeoutId);
+    this.leftTime = 0;
     this.paused = true;
   }
 
+  pause() {
+    if (this.paused) return false;
+    this.leftTime = this.waitTime - (Date.now() - this.lastTime)
+
+    clearTimeout(this._timeoutId);
+    this.paused = true;
+    return true;
+  }
+
   resume() {
-    if (!this.paused) return;
+    if (!this.paused) return false;
     // is possible `leftTime` < 0?
     // I'm not sure, this code is to protect from such situation
     if (this.leftTime > 0) {
@@ -35,18 +55,26 @@
     } else this._start()
 
     this.paused = false;
+    return true;
+  }
+
+  start() {
+    return this.resume();
   }
 
   _start() {
+    // currently interval is passed like a getter function
+    // we'll try implement `changeInterval()` in the future.
     let ms = this._intervalGetter();
-    
-    if(isNaN(ms)) throw new Error("`intervalGetter()` should return a number") 
-    	
-    this._loopFn();
+    if (isNaN(ms)) throw new Error("`intervalGetter()` should return a number")
+
+    if (!(this._beforeFirstLoop && !this.opts.executeBeforeFirstLoop)) this._loopFn();
 
     this._timeoutId = setTimeout(_ => {
+      this._beforeFirstLoop = false;
       this._start();
     }, ms)
+
     this.waitTime = ms;
     this.lastTime = Date.now();
   }

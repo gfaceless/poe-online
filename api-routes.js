@@ -3,18 +3,25 @@
 var express = require('express');
 var router = express.Router();
 var resProto = express.response;
+var itemMgrFactory = require("./item-mgr");
 
-var poe = require("./item-mgr");
 
-router.get('/', function(req, res) {
-  res.send('shit');
+var factoryPromise = itemMgrFactory.create('app')
+
+router.use(function(req, res, next) {
+
+  factoryPromise.then(poe => {
+    req.poe = poe;
+    next();
+  })
+
 })
 
-router.post('/item/', function(req, res, next) {
-  var name = req.body.name;
-  var url = req.body.url;
 
-  poe.addItem(name, url)
+router.post('/item/', function(req, res, next) {
+  console.log('in post item router', req.body)
+
+  req.poe.addItem(req.body)
     // hope I could use new bind notation `::res.ok`
     .then(res.ok.bind(res), res.err.bind(res))
 });
@@ -22,13 +29,13 @@ router.post('/item/', function(req, res, next) {
 router.get('/item/:id', function(req, res) {
   let id = req.params.id
 
-  poe.showItem(id)
+  req.poe.showItem(id)
     .then(res.ok.bind(res), res.err.bind(res))
 });
 
 router.get('/item', function(req, res) {
 
-  poe.showItems()
+  req.poe.showItems()
     .then(res.ok.bind(res), res.err.bind(res))
 
 })
@@ -36,7 +43,7 @@ router.get('/item', function(req, res) {
 router.delete('/item/:id', function(req, res) {
   let id = req.params.id
 
-  poe.removeItem(id)
+  req.poe.removeItem(id)
     .then(res.ok.bind(res), res.err.bind(res))
 });
 
@@ -44,38 +51,30 @@ router.delete('/item/:id', function(req, res) {
 router.put('/item/:id', function(req, res) {
   let id = req.params.id
 
-  poe.changeItem(id, req.body)
+  req.poe.updateItem(id, req.body)
     .then(res.ok.bind(res), res.err.bind(res))
 });
 
-
-router.get('/ntf/setting', function(req, res) {
-  poe.showNtfSetting()
+router.get('/settings', function(req, res) {
+  req.poe.showSettings()
     .then(res.ok.bind(res), res.err.bind(res))
 
 })
-router.post('/ntf/resume', function(req, res) {
-  poe.resumeNotification()
-    .then(res.ok.bind(res), res.err.bind(res))
-})
 
-router.post('/ntf/pause', function(req, res) {
-  poe.pauseNotification()
-    .then(res.ok.bind(res), res.err.bind(res));
-})
+router.post('/settings', function(req, res) {
 
-// notification setting
-router.post('/ntf/setting', function(req, res) {
-
-  var opts = {};
-  var sec = req.body.interval;
-  if (sec) opts.interval = sec;
-
-  poe.changeNtfSetting(opts)
+  // note here we should not care about if `req.body` is empty or not
+  // all logic goes to `poe` itself 
+  req.poe.updateSettings(req.body)
     .then(res.ok.bind(res), res.err.bind(res))
 
 });
 
+router.get('/', function(req, res) {
+  req.poe.summary()
+    .then(res.ok.bind(res), res.err.bind(res))
+
+})
 /*function responseWithOk(res, data) {
   let ret = {
     success: true
@@ -99,7 +98,6 @@ function responseWithError(res, err) {
  * @return {[type]}      [description]
  */
 resProto.ok = function(data) {
-  console.log('in resProto ok')
   let ret = {
     success: true
   };
