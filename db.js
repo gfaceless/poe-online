@@ -118,7 +118,6 @@ class DbCollection {
 
 
   find(id) {
-  	console.log('in find', this.collection)
     return this.collection.find((doc, i) => {
       return doc.id === id;
     })

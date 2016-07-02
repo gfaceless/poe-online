@@ -4,9 +4,10 @@ var Rx = require("rx");
 
 var Timer = require("./timer");
 var isEmpty = require("./helper").isEmpty;
+var isBoolean = require("./helper").isBoolean;
 
 const DEFAULT_SETTING = {
-  interval: 30 * 1000,
+  buzzInterval: 30,
   sound: true,
   buzz: true,
   title: 'fuck up'
@@ -20,14 +21,23 @@ class Notifier {
     this.settings = opts;
 
     this.sysNotifier = sysNotifier;
-    this._buzzTimer = new Timer(this._buzzNotify, _ => this.settings.buzzInterval, { context: this });
+    this._buzzTimer = new Timer(this._buzzNotify, _ => this.settings.buzzInterval * 1000, { context: this });
   }
 
+  /**
+   * [notify description]
+   * @param  {[type]} msg can be a string or a function, if a function, buzz message will be generate dynamically
+   *                      everytime `_buzzNotify()` runs
+   */
   notify(msg) {
     if (isEmpty(msg)) return;
+    var msgFn;
+    if (typeof msg == 'function') {
+      msgFn = msg;
+    }
 
     this._buzzMsg = msg;
-    this._notify(msg);
+    this._notify(msgFn ? msgFn() : msg);
     this._buzzTimer.reset();
     if (this.settings.buzz) this._buzzTimer.start();
   }
@@ -39,6 +49,7 @@ class Notifier {
    * recieve nothing.
    *
    * if notification has never started, it will behave like a normal notifcation.
+   * TODO: this function is not intuitive, need some rework
    */
   passiveNotify(msg) {
     if (isEmpty(msg)) return;
@@ -68,30 +79,33 @@ class Notifier {
   // we plan to return an error if fail to update, or make this promise-based api  
   updateSettings(opts) {
 
-    var lastBuzz = opts.buzz;
+    console.log('lets see what happened', opts);
+    var lastBuzz = this.settings.buzz;
 
     Object.assign(this.settings, opts)
-    if (opts.buzz == lastBuzz) return;
-    opts.buzz ? this._enableBuzz() : this._disableBuzz();
+    console.log('this.settings', this.settings);
 
+    if (isBoolean(opts.buzz) && opts.buzz != lastBuzz) {
+      opts.buzz ? this._enableBuzz() : this._disableBuzz();
+    }
   }
 
   _enableBuzz() {
-    if (this.settings.buzz) return false;
-    var started = this._buzzTimer.start()
-    this.settings.buzz = started;
-    return started;
+
+    this._buzzTimer.start()
+    this.settings.buzz = true;
   }
 
   _disableBuzz() {
-    if (!this.settings.buzz) return false;
 
-    return this._buzzTimer.pause();
+    this._buzzTimer.pause();
+    this.settings.buzz = false;
   }
 
 
   _buzzNotify() {
-    this._notify(this._buzzMsg)
+    var msg = (typeof this._buzzMsg == 'function') ? this._buzzMsg() : this._buzzMsg;
+    this._notify(msg);
   }
 
   /**
@@ -118,7 +132,7 @@ module.exports = Notifier;
 n.notify('hi there')
 
 setTimeout(function() {
-	console.log('about to notify hey girl')
+  console.log('about to notify hey girl')
   n.notify('hey girl')
 
   setTimeout(function() {

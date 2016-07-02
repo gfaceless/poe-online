@@ -7,10 +7,11 @@ var Notifier = require("./notifier");
 var helper = require("./helper");
 var isEmpty = helper.isEmpty
 var isDefined = helper.isDefined
+var shadowCopy = helper.shadowCopy
 
 const DEFAULT_NTF_SETTING = {
   buzz: true,
-  buzzInterval: 30 * 1000,
+  buzzInterval: 30,
   title: "your item is online!",
   sound: true,
 }
@@ -26,19 +27,18 @@ class ItemMgr {
     this._disposableMgr = new DisposableMgr()
 
     data.items.forEach((data, i) => {
-      this.items.push(new PoeItem(data.name, data.url))
+      this._addItem(data);
     });
 
-    this.settings = data.settings;
+    this.settings = data.settings || {};
+    this.settings.toJSON = function() {
+      return shadowCopy(this, ["buzz", "buzzInterval", "title", "sound"]);
+    }
+
     var ntfSettings = Object.assign({}, DEFAULT_NTF_SETTING, this.settings);
     this.notifier = new Notifier(ntfSettings);
 
     this.onlineItems = [];
-
-    // tmp:
-    this.items.forEach((item, i) => {
-      this._watchItem(item);
-    });
 
   }
 
@@ -70,20 +70,15 @@ class ItemMgr {
 
     var item = this.find(item)
     if (!item) return Promise.reject(new Error("could not find item"));
-    var toggleSuccess;
-    if (typeof updates.watch == 'boolean') {
-      toggleSuccess = updates.watch ? this._watchItem(item) : this._unwatchItem(item);
-    }
-
-    // I wanted to introduce a `partial success` error type to our app,
-    // but i seems to unneccesarily complicate our app at this early stage.
-    // so there is only success or failure, no intermediate stage, for now.
-    if (toggleSuccess === false) return Promise.reject(new Error('fail to toggle watch'))
 
     return item.update(updates)
       .then(itemInfo => {
-        if (typeof updates.watch == 'boolean') itemInfo.watch = updates.watch;
-        return itemInfo
+        if (itemInfo.watchFlag) this._watchItem(item)
+        else this._unwatchItem(item)
+        return this.save()
+          .then(_ => {
+            return itemInfo
+          })
       })
   }
 
@@ -166,9 +161,12 @@ class ItemMgr {
   }
 
   _addItem(data) {
-    let item = new PoeItem(data.name, data.url)
+    let item = new PoeItem(data)
     this.items.push(item)
-    this._watchItem(item);
+
+    if (item.watchFlag) {
+      this._watchItem(item);
+    }
   }
 
   /** 
@@ -206,19 +204,21 @@ class ItemMgr {
       return this.notifier.clear();
     }
 
-    if (!passive) this.notifier.notify(msg);
-    else this.notifier.passiveNotify(msg);
+    if (!passive) this.notifier.notify(_ => this.genOnlineInfo());
+    else this.notifier.passiveNotify(_ => this.genOnlineInfo());
   }
 
-  // note that private functions like this dont check passing parameters
+
+  /**
+   * mainly to manage subscribe/unsubscribe for the item-watcher
+   * note that `item.watch()` returns a notifier.
+   */
   _watchItem(item) {
-
-    var result = item.startCheck();
-    if (!result) return false;
-
-    let sub = item.notifier.subscribe(_ => {
-      this._checkForChanges(item);
-    })
+    // note that private functions like this dont check passing parameters
+    var sub = item.watch()
+      .subscribe(_ => {
+        this._checkForChanges(item);
+      })
     this._disposableMgr.add(item.id, sub)
     return true;
   }
@@ -226,12 +226,12 @@ class ItemMgr {
   // notice that we remove item from `onlineItems` when we unwatch it
   // the logic may be a little confusing (or not)
   _unwatchItem(item) {
-    item.stopCheck();
+    item.unwatch();
     this._disposableMgr.dispose(item.id);
     let idx = this.onlineItems.indexOf(item);
     if (~idx) this.onlineItems.splice(idx, 1);
     // passively notify if item is online when removed
-    if (item.online) this.notify(true)
+    if (item.online) this._notify(true)
   }
 
 

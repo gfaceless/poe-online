@@ -23,56 +23,56 @@ router.post('/item/', function(req, res, next) {
 
   req.poe.addItem(req.body)
     // hope I could use new bind notation `::res.ok`
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 });
 
-router.get('/item/:id', function(req, res) {
+router.get('/item/:id', function(req, res, next) {
   let id = req.params.id
 
   req.poe.showItem(id)
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 });
 
-router.get('/item', function(req, res) {
+router.get('/item', function(req, res, next) {
 
   req.poe.showItems()
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 
 })
 
-router.delete('/item/:id', function(req, res) {
+router.delete('/item/:id', function(req, res, next) {
   let id = req.params.id
 
   req.poe.removeItem(id)
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 });
 
 
-router.put('/item/:id', function(req, res) {
+router.put('/item/:id', function(req, res, next) {
   let id = req.params.id
 
   req.poe.updateItem(id, req.body)
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 });
 
-router.get('/settings', function(req, res) {
+router.get('/settings', function(req, res, next) {
   req.poe.showSettings()
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 
 })
 
-router.post('/settings', function(req, res) {
+router.put('/settings', function(req, res, next) {
 
   // note here we should not care about if `req.body` is empty or not
   // all logic goes to `poe` itself 
   req.poe.updateSettings(req.body)
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 
 });
 
-router.get('/', function(req, res) {
+router.get('/', function(req, res, next) {
   req.poe.summary()
-    .then(res.ok.bind(res), res.err.bind(res))
+    .then(res.ok.bind(res), next)
 
 })
 /*function responseWithOk(res, data) {
@@ -108,17 +108,6 @@ resProto.ok = function(data) {
   return this.json(ret);
 }
 
-// TODO: use next(err) instead
-resProto.err = function(err) {
-  console.log('in resProto err')
-  let ret = {
-    success: false
-  };
-  // deal with different kinds of errors here:
-  if (err) ret.err = err.message;
-
-  return this.status(400).json(ret);
-}
 
 
 

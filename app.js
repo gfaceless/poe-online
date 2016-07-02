@@ -41,12 +41,15 @@ app.use(function(req, res, next) {
 
 // development error handler
 // will print stacktrace
-if (app.get('env') === 'development') {
 
+console.log(app.get('env'));
+
+if (app.get('env') === 'development') {
 
   app.use(function(err, req, res, next) {
     console.log(err);
-    res.status(err.status || 500);
+    res.err(err);
+    return;
     res.render('error', {
       message: err.message,
       error: err
@@ -63,6 +66,21 @@ app.use(function(err, req, res, next) {
     error: {}
   });
 });
+
+
+var resProto = express.response;
+resProto.err = function(err) {
+  console.log('in resProto', err);
+  var ret = {
+    success: false,
+    err: {
+      message: err.message,
+      stack: err.stack
+    }
+  };
+  // maybe deal with different kinds of errors here:
+  return this.status(400).json(ret);
+}
 
 
 module.exports = app;
