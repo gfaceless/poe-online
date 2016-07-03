@@ -5,6 +5,7 @@ var Rx = require("rx");
 var Timer = require("./timer");
 var isEmpty = require("./helper").isEmpty;
 var isBoolean = require("./helper").isBoolean;
+var foobar = require("./foobar");
 
 const DEFAULT_SETTING = {
   buzzInterval: 30,
@@ -21,6 +22,8 @@ class Notifier {
     this.settings = opts;
 
     this.sysNotifier = sysNotifier;
+    this.foobar = foobar;
+
     this._buzzTimer = new Timer(this._buzzNotify, _ => this.settings.buzzInterval * 1000, { context: this });
   }
 
@@ -119,6 +122,8 @@ class Notifier {
       'message': msg,
       sound: this.settings.sound,
     });
+
+    if(this.settings.sound) this.foobar.beep(5);
   }
 }
 
