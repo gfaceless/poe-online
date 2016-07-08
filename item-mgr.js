@@ -2,7 +2,7 @@
 
 var PoeItem = require("./poe-item");
 var DisposableMgr = require("./disposable-mgr");
-var DbCollection = require("./db");
+var DbCollection = require("./lib/db");
 var Notifier = require("./notifier");
 var helper = require("./helper");
 var isEmpty = helper.isEmpty
@@ -275,6 +275,9 @@ var itemMgrFactory = {
       if (!this._promiseCache[id]) {
         this._promiseCache[id] = this._db.load(id)
           .then(data => {
+            if(isEmpty(data)) {
+              data = {id: id};
+            }
             var itemMgr = new ItemMgr(data, this._db);
             return itemMgr
           }, function(err) {
