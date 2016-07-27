@@ -31,6 +31,7 @@ class PoeItem {
   constructor(data) {
     if(isUndefined(data.id)) throw new Error('curently an id must be passed')
 
+    console.log('data id is', data.id);
     defaults(data, DEFAULT_SETTINGS);
 
     this.name = data.name;

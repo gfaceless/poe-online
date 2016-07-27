@@ -19,6 +19,7 @@ class ItemMgr {
   constructor(data, db) {
 
     this.id = data.id;
+    // should have named it `dbCollection`
     this._db = db;
     this.items = [];
     this.onlineItems = [];
@@ -38,7 +39,7 @@ class ItemMgr {
 
     var ntfSettings = Object.assign({}, DEFAULT_NTF_SETTING, this.settings);
     this.notifier = new Notifier(ntfSettings);
-    
+
   }
 
   /**
@@ -164,11 +165,11 @@ class ItemMgr {
 
   // add item as well as initialzie the watching (if watchFlag is set)
   _addItem(data) {
-    if(isUndefined(data.id)) data.id = this._idGenerator.generate()
+    if (isUndefined(data.id)) data.id = this._idGenerator.generate()
     let item = new PoeItem(data)
     this.items.push(item)
 
-    if(item.watchFlag) this._watchItem(item);
+    if (item.watchFlag) this._watchItem(item);
     return item;
   }
 
@@ -265,6 +266,17 @@ class ItemMgr {
     }
   }
 
+  //////////////////////////////////////////////
+  // **NEVER CALL THIS TESTING PURPOSE ONLY** //
+  //////////////////////////////////////////////
+  _clear() {
+    this.items.forEach((item, i) => {
+      this.removeItem(item)
+    });
+    this._idGenerator.reset();
+    return this._db.clear();
+  }
+
 }
 
 // note this function will return true for oct or hex 
@@ -275,19 +287,22 @@ function idLike(p) {
 
 
 class IdGenerator {
-  constructor(){
+  constructor() {
     this.counter = 0;
   }
   update(number) {
-    if(typeof number != 'number') {
+    if (typeof number != 'number') {
       console.warn('currently only raw number is supported')
       return;
     }
 
-    if(number > this.counter ) this.counter = number; 
+    if (number > this.counter) this.counter = number;
   }
-  generate(){
+  generate() {
     return this.counter++;
+  }
+  reset(){
+    this.counter = 0;
   }
 }
 
@@ -306,7 +321,7 @@ var itemMgrFactory = (function() {
     if (!promiseCache[id]) {
       promiseCache[id] = db.load(id)
         .then(data => {
-          
+
           if (isEmpty(data)) {
             data = { id: id };
           }

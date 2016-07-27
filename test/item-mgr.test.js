@@ -9,6 +9,7 @@ var itemMgrFactory = require("../app/item-mgr");
 var PoeItem = require("../app/poe-item");
 
 var poe;
+var noop = function() {}
 
 before(function() {
   const collectionName = '_test_'
@@ -39,7 +40,7 @@ describe('TEST FOR ITEM-MANAGER', function() {
   this.timeout(0);
 
   afterEach(function() {
-    poe.removeItem
+    // poe.removeItem
   })
 
   // TODO: stub checkOnline() and make a mock server
@@ -71,9 +72,14 @@ describe('TEST FOR ITEM-MANAGER', function() {
   });
 
   describe('unit tests', function() {
+    before(function() {
+      return poe._clear()
+    })
+
     var sandbox;
 
     beforeEach(function() {
+      
        sandbox = sinon.sandbox.create();
     })
 
@@ -83,6 +89,7 @@ describe('TEST FOR ITEM-MANAGER', function() {
 
 
     it('add 2 x offline items: should call `checkOnline` twice', function() {
+      
       var checkOnline = sandbox.spy(PoeItem.prototype, "checkOnline");
 
       var item1 = poe._addItem({
