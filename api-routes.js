@@ -3,9 +3,10 @@
 var express = require('express');
 var router = express.Router();
 var resProto = express.response;
-var itemMgrFactory = require("./item-mgr");
+var itemMgrFactory = require("./app/item-mgr");
 
-
+// when user system is introduced later, each user will have a unique `itemMgr`.
+// but now we just use a random id `app` here.
 var factoryPromise = itemMgrFactory.create('app')
 
 router.use(function(req, res, next) {

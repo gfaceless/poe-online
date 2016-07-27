@@ -15,7 +15,6 @@ module.exports = function check(url, meta) {
 
   return new Promise(function(resolve, reject, onCancel) {
 
-
     request(url, function(error, res, body) {
       if (error) {
         /*ommit error for now*/

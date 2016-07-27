@@ -1,10 +1,7 @@
-'use strict'
+'use strict';
 var checkOnline = require("./check-online")
 var Rx = require("rx");
-var helper = require("./helper");
-var isUndefined = helper.isUndefined;
-var shadowCopy = helper.shadowCopy;
-var isBoolean = helper.isBoolean;
+var {isUndefined, copy, isBoolean, defaults} = require("../lib/helper");
 
 const CHECK_INTERVAL = 50; /*seconds*/
 const DEFAULT_SETTINGS = {
@@ -32,8 +29,9 @@ class PoeItem {
   }
 
   constructor(data) {
+    if(isUndefined(data.id)) throw new Error('curently an id must be passed')
 
-    data = Object.assign({}, DEFAULT_SETTINGS, data);
+    defaults(data, DEFAULT_SETTINGS);
 
     this.name = data.name;
     this.url = data.url;
@@ -51,17 +49,35 @@ class PoeItem {
      * so in near future, I'll try some factory method like `PoeItem.create()` for the job
      */
 
+    /**
+     * Another note:
+     * maybe I could simply try something like this:
+     * `var item = new PoeItem();`
+     * `item.init()`
+     * 
+     * `init()` will return a promise, thus errors(including validation errors) 
+     * will be handled gracefully in rejection handler.
+     * Of course a static function (or some factory function) could combine 
+     * instantization and initialization, but using them seperately is still 
+     * intuitive and even more flexible, imo. 
+     */
+
     this.online = false;
     this.checkedTimes = 0;
     this.startedTime = undefined;
 
-    // TODO: find a good way to create id
-    this.id = data.id || id++;
+    this.id = data.id
 
     this.notifier = new Rx.Subject()
     this._createChecker();
+  }
 
-    if (this.watchFlag) this.watch()
+  // We intentionally seperate this logic from constructor
+  // because we want to call `watch()` in the parent so that we can 
+  // better manage the watchers 
+  // (but this function is actually never used. `watch()` is preferred)
+  initWatch() {
+    if(this.watchFlag) this.watch();
   }
 
   get watching() {
@@ -91,7 +107,7 @@ class PoeItem {
    * this information will go to client (front-end)
    */
   info() {
-    return shadowCopy(this, ["id", "name", "url", "online", "interval", "watchFlag"]);
+    return copy(this, ["id", "name", "url", "online", "interval", "watchFlag"]);
   }
 
   /**
@@ -141,7 +157,7 @@ class PoeItem {
   }
 
   // I wanted to introduce a `partial success` error type to our app,
-  // but i seems to unneccesarily complicate our app at this early stage.
+  // but i seems to be unneccesarily complicating our app at this early stage.
   // so there is only success or failure, no intermediate stage, for now.
   update(updates) {
     // call validation here

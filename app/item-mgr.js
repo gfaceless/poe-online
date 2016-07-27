@@ -1,13 +1,11 @@
 'use strict';
 
 var PoeItem = require("./poe-item");
-var DisposableMgr = require("./disposable-mgr");
-var DbCollection = require("./lib/db");
-var Notifier = require("./notifier");
-var helper = require("./helper");
-var isEmpty = helper.isEmpty
-var isDefined = helper.isDefined
-var shadowCopy = helper.shadowCopy
+var DisposableMgr = require("../lib/disposable-mgr");
+var DbCollection = require("../lib/db");
+var Notifier = require("../lib/notifier");
+
+var { isEmpty, isUndefined, copy } = require("../lib/helper");
 
 const DEFAULT_NTF_SETTING = {
   buzz: true,
@@ -23,23 +21,24 @@ class ItemMgr {
     this.id = data.id;
     this._db = db;
     this.items = [];
+    this.onlineItems = [];
+    this._idGenerator = new IdGenerator();
 
-    this._disposableMgr = new DisposableMgr()
+    this._watchSubscribers = new DisposableMgr()
 
-    data.items.forEach((data, i) => {
+    data.items && data.items.forEach((data, i) => {
       this._addItem(data);
+      this._idGenerator.update(data.id);
     });
 
     this.settings = data.settings || {};
     this.settings.toJSON = function() {
-      return shadowCopy(this, ["buzz", "buzzInterval", "title", "sound"]);
+      return copy(this, ["buzz", "buzzInterval", "title", "sound"]);
     }
 
     var ntfSettings = Object.assign({}, DEFAULT_NTF_SETTING, this.settings);
     this.notifier = new Notifier(ntfSettings);
-
-    this.onlineItems = [];
-
+    
   }
 
   /**
@@ -73,8 +72,11 @@ class ItemMgr {
 
     return item.update(updates)
       .then(itemInfo => {
-        if (itemInfo.watchFlag) this._watchItem(item)
-        else this._unwatchItem(item)
+
+        // toggle watch
+        if (!item.watchFlag && itemInfo.watchFlag) this._watchItem(item)
+        else if (item.watchFlag && !itemInfo.watchFlag) this._unwatchItem(item)
+
         return this.save()
           .then(_ => {
             return itemInfo
@@ -119,7 +121,7 @@ class ItemMgr {
     }])
   }
 
-
+  // an api for outer world
   addItem(data) {
     this._addItem(data);
     return this.save();
@@ -160,13 +162,14 @@ class ItemMgr {
     }).join("\n");
   }
 
+  // add item as well as initialzie the watching (if watchFlag is set)
   _addItem(data) {
+    if(isUndefined(data.id)) data.id = this._idGenerator.generate()
     let item = new PoeItem(data)
     this.items.push(item)
 
-    if (item.watchFlag) {
-      this._watchItem(item);
-    }
+    if(item.watchFlag) this._watchItem(item);
+    return item;
   }
 
   /** 
@@ -214,20 +217,26 @@ class ItemMgr {
    * note that `item.watch()` returns a notifier.
    */
   _watchItem(item) {
-    // note that private functions like this dont check passing parameters
+    // it may be customary for private functions like this
+    // to not guard against passing parameters
+
+    if (this._watchSubscribers.has(item.id)) return;
     var sub = item.watch()
       .subscribe(_ => {
         this._checkForChanges(item);
       })
-    this._disposableMgr.add(item.id, sub)
+    this._watchSubscribers.add(item.id, sub)
     return true;
   }
 
   // notice that we remove item from `onlineItems` when we unwatch it
   // the logic may be a little confusing (or not)
   _unwatchItem(item) {
+
+    if (!this._watchSubscribers.has(item.id)) return;
+
     item.unwatch();
-    this._disposableMgr.dispose(item.id);
+    this._watchSubscribers.dispose(item.id);
     let idx = this.onlineItems.indexOf(item);
     if (~idx) this.onlineItems.splice(idx, 1);
     // passively notify if item is online when removed
@@ -265,36 +274,54 @@ function idLike(p) {
 }
 
 
-var itemMgrFactory = {
-  _promiseCache: {},
-  _db: new DbCollection("whatever", "itemMgrs"),
-  // always return a promise
-  create(id) {
-    // TODO: add error handling.
-    if (!isEmpty(id)) {
-      if (!this._promiseCache[id]) {
-        this._promiseCache[id] = this._db.load(id)
-          .then(data => {
-            if(isEmpty(data)) {
-              data = {id: id};
-            }
-            var itemMgr = new ItemMgr(data, this._db);
-            return itemMgr
-          }, function(err) {
-            // should clear cache here
-            throw err
-          })
-      }
-
-      return this._promiseCache[id];
+class IdGenerator {
+  constructor(){
+    this.counter = 0;
+  }
+  update(number) {
+    if(typeof number != 'number') {
+      console.warn('currently only raw number is supported')
+      return;
     }
-    // fucky way to generate a unique id
-    var id = Math.random();
-    return Promise.resolve(new ItemMgr({
-      id: id
-    }, this._db))
+
+    if(number > this.counter ) this.counter = number; 
+  }
+  generate(){
+    return this.counter++;
   }
 }
+
+
+
+var itemMgrFactory = (function() {
+  var promiseCache = {};
+  // DbCollection's interface may change to promise-based
+  var db = new DbCollection("whatever", "itemMgrs");
+
+  // return a promise
+  function create(id) {
+    if (isEmpty(id)) throw new Error('id must be given')
+      // TODO: add error handling.
+
+    if (!promiseCache[id]) {
+      promiseCache[id] = db.load(id)
+        .then(data => {
+          
+          if (isEmpty(data)) {
+            data = { id: id };
+          }
+          return new ItemMgr(data, db);
+        }, function(err) {
+          // should clear cache here
+          throw err
+        })
+    }
+
+    return promiseCache[id];
+  }
+
+  return { create, _dbCollection: db };
+})();
 
 module.exports = itemMgrFactory
 
