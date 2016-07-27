@@ -5,7 +5,7 @@ var DisposableMgr = require("../lib/disposable-mgr");
 var DbCollection = require("../lib/db");
 var Notifier = require("../lib/notifier");
 
-var { isEmpty, isUndefined, copy } = require("../lib/helper");
+var { isEmpty, isUndefined, copy, idLike } = require("../lib/helper");
 
 const DEFAULT_NTF_SETTING = {
   buzz: true,
@@ -277,12 +277,6 @@ class ItemMgr {
     return this._db.clear();
   }
 
-}
-
-// note this function will return true for oct or hex 
-// e.g. "0x123", "00123" 
-function idLike(p) {
-  return !isNaN(+p);
 }
 
 

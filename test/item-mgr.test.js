@@ -31,9 +31,9 @@ after(function() {
   // return itemMgrFactory._dbCollection.destroy()
 })
 
-var ALWAYS_ONLINE_URL = "http://poe.trade/search/etiohazasiatoy"
-var ALWAYS_OFFLINE_URL_1 = "http://poe.trade/search/anyatootaritak"
-var ALWAYS_OFFLINE_URL_2 = "http://poe.trade/search/agokokewoketun"
+const ALWAYS_ONLINE_URL = "http://poe.trade/search/etiohazasiatoy"
+const ALWAYS_OFFLINE_URL_1 = 'http://poe.trade/search/ukokonyeuwomeb'
+const ALWAYS_OFFLINE_URL_2 = "http://poe.trade/search/agokokewoketun"
 
 
 describe('TEST FOR ITEM-MANAGER', function() {
